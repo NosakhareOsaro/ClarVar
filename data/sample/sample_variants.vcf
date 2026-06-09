@@ -1,0 +1,16 @@
+##fileformat=VCFv4.2
+##INFO=<ID=CSQ,Description="Consequence">
+##INFO=<ID=AF,Description="Allele Frequency">
+##INFO=<ID=CLINVAR,Description="ClinVar Significance">
+##INFO=<ID=PRIORITY,Description="ClarVar Priority Score">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO
+1	12345	.	A	G	100	PASS	.
+1	54321	.	T	C	95	PASS	.
+2	98765	.	G	A	88	PASS	.
+3	11111	.	ATG	A	92	PASS	.
+3	22222	.	C	CT	85	PASS	.
+5	33333	.	GCTA	G	90	PASS	.
+6	44444	.	A	T	87	PASS	.
+7	55555	.	G	C	93	PASS	.
+10	66666	.	T	A	89	PASS	.
+17	41246881	.	G	A	99	PASS	.

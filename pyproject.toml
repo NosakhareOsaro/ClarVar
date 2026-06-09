@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clarvar"
+version = "0.2.0"
+description = "Open-Source Variant Annotation & Prioritisation Pipeline for Clinical Genomics"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+keywords = ["bioinformatics", "genomics", "vcf", "variant-annotation", "vep", "gnomad", "clinvar"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+]
+
+dependencies = [
+    "click>=8.1",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+]
+
+[project.scripts]
+clarvar = "clarvar.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/NosakhareOsaro/ClarVar"
+"Bug Tracker" = "https://github.com/NosakhareOsaro/ClarVar/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+markers = [
+    "integration: marks tests as integration tests",
+    "slow: marks tests as slow-running",
+]
