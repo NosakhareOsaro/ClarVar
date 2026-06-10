@@ -201,7 +201,19 @@ def _extract_clinvar(
         significance — comma-joined string if multiple values
         clinvar_id   — first ClinVar ID, or None
     """
-    raise NotImplementedError("TODO: implement _extract_clinvar")
+    for colocated in vep_hit.get("colocated_variants", []):
+        # Skip somatic (e.g. tumour-acquired) records — ClarVar is germline-only.
+        if colocated.get("somatic"):
+            continue
+
+        clin_sig = colocated.get("clin_sig")
+        if clin_sig:
+            significance = ", ".join(clin_sig)
+            clinvar_ids = colocated.get("var_synonyms", {}).get("ClinVar")
+            clinvar_id = clinvar_ids[0] if clinvar_ids else None
+            return significance, clinvar_id
+
+    return None, None
 
 
 def _apply_vep_result(variant: Variant, vep_hit: Dict[str, Any]) -> None:
