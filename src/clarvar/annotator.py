@@ -177,8 +177,17 @@ def _extract_gnomad_af(vep_hit: Dict[str, Any]) -> Optional[float]:
     -------
     float or None
     """
-    raise NotImplementedError("TODO: implement _extract_gnomad_af")
+    colocated = vep_hit.get("colocated_variants", [])
 
+    for variant in colocated:
+        frequencies = variant.get("frequencies", {})
+
+        for allele_data in frequencies.values():
+            for key in ("gnomad", "gnomadg", "gnomade"):
+                if key in allele_data:
+                    return allele_data[key]
+
+    return None
 
 def _extract_clinvar(
     vep_hit: Dict[str, Any],
