@@ -208,7 +208,7 @@ def _extract_clinvar(
 
         clin_sig = colocated.get("clin_sig")
         if clin_sig:
-            significance = ", ".join(clin_sig)
+            significance = ", ".join(clin_sig) if isinstance(clin_sig, list) else str(clin_sig)
             clinvar_ids = colocated.get("var_synonyms", {}).get("ClinVar")
             clinvar_id = clinvar_ids[0] if clinvar_ids else None
             return significance, clinvar_id
