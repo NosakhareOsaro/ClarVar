@@ -130,8 +130,8 @@ def _to_vep_region(variant: Variant) -> str:
     str
         VEP region notation string.
     """
-    raise NotImplementedError("TODO: implement _to_vep_region")
-
+    end = variant.pos + len(variant.ref) - 1
+    return f"{variant.chrom} {variant.pos} {end} {variant.ref}/{variant.alt} 1"
 
 def _pick_most_severe_transcript(
     transcripts: List[Dict[str, Any]]
