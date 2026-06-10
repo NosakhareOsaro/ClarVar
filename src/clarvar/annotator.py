@@ -130,8 +130,9 @@ def _to_vep_region(variant: Variant) -> str:
     str
         VEP region notation string.
     """
-    raise NotImplementedError("TODO: implement _to_vep_region")
-
+    
+    end = variant.position + len(variant.ref) - 1
+    return (f"{variant.chromosome} "f"{variant.position} "f"{end} "f"{variant.ref}/{variant.alt} "f"1")
 
 def _pick_most_severe_transcript(
     transcripts: List[Dict[str, Any]]
