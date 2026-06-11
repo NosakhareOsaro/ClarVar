@@ -265,7 +265,7 @@ def _apply_vep_result(variant: Variant, vep_hit: Dict[str, Any]) -> None:
     vep_hit : dict
         A single element from the VEP JSON response list.
     """
-   
+  
     transcripts = vep_hit.get("transcript_consequences", [])
     transcript = _pick_most_severe_transcript(transcripts)
     
@@ -440,7 +440,6 @@ class VariantAnnotator:
             time.sleep(RATE_LIMIT_PAUSE)
 
         return VariantCollection(variants=list(region_map.values()))
-    
     def clear_cache(self) -> None:
         """Clear the internal response cache."""
         self._response_cache.clear()
@@ -494,7 +493,12 @@ class LocalAnnotator:
         Variant
             Same object, modified in-place.
         """
-        raise NotImplementedError("TODO: implement LocalAnnotator.annotate_variant")
+        key = f"{variant.chromosome}:{variant.position}_{variant.ref}_{variant.alt}"
+        if key in self.gnomad_db:
+            variant.allele_frequency = self.gnomad_db[key].get("af")
+        if key in self.clinvar_db:
+            variant.clinvar_significance = self.clinvar_db[key].get("significance")
+        return variant
 
     def annotate_collection(self, collection: VariantCollection) -> VariantCollection:
         """
@@ -508,4 +512,6 @@ class LocalAnnotator:
         -------
         VariantCollection
         """
-        raise NotImplementedError("TODO: implement LocalAnnotator.annotate_collection")
+        for v in collection.variants:
+            self.annotate_variant(v)
+        return VariantCollection(variants=list(collection.variants))
