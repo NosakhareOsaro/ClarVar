@@ -155,7 +155,20 @@ def _pick_most_severe_transcript(
     dict or None
         The most severe transcript dict, or None if the list is empty.
     """
-    raise NotImplementedError("TODO: implement _pick_most_severe_transcript")
+    if not transcripts:
+        return None
+
+    most_severe = None
+    lowest_rank = float('inf')
+
+    for transcript in transcripts:
+        for term in transcript.get("consequence_terms", []):
+            rank = CONSEQUENCE_SEVERITY.get(term, float('inf'))
+            if rank < lowest_rank:
+                lowest_rank = rank
+                most_severe = transcript
+
+    return most_severe
 
 
 def _extract_gnomad_af(vep_hit: Dict[str, Any]) -> Optional[float]:
