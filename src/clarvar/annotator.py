@@ -132,7 +132,7 @@ def _to_vep_region(variant: Variant) -> str:
     """
     
     end = variant.position + len(variant.ref) - 1
-    return (f"{variant.chromosome} "f"{variant.position} "f"{end} "f"{variant.ref}/{variant.alt} "f"1")
+    return f"{variant.chromosome} {variant.position} {end} {variant.ref}/{variant.alt} 1"
 
 def _pick_most_severe_transcript(
     transcripts: List[Dict[str, Any]]
