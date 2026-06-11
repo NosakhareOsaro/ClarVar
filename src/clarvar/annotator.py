@@ -66,7 +66,7 @@ import logging
 import time
 from typing import Any, Dict, List, Optional
 
-import requests
+import requests, re #I included a regex library as I use it in one of the helper functions
 
 from clarvar.variant import Consequence, Variant, VariantCollection
 
@@ -377,7 +377,34 @@ class VariantAnnotator:
         VariantCollection
             New collection with annotation fields populated on every Variant.
         """
-        raise NotImplementedError("TODO: implement annotate_collection")
+        #1 dictionary mapping VEP region string to Variant object
+        #map variable is our dictionary
+        #we add a note stating that this variable should be a dictionary with string keys and Variant values
+        map: dict[str, Variant] = {}
+        for variant in collection.variants:
+            #we call the _to_vep_region helper because we need the VEP region string for the current variant
+            vep_region = _to_vep_region(variant)
+            #we add an entry to our map dictionary, where the key is the VEP region string and the value is the Variant object
+            map[vep_region] = variant
+        
+        #2 loop over variants in slices of BATCH_SIZE
+        vep_keys = list(map.keys()) #list of all the keys in our dictionary which are the VEP region strings
+        for i in range(0, len(vep_keys), BATCH_SIZE): #looping over the length of our list of keys in BATCH_SIZE steps
+            batch_keys = vep_keys[i : i + BATCH_SIZE] # final slice needs to be flexible in case it is < BATCH_SIZE
+            batch_variants = [map[k] for k in batch_keys] # for each element in the batch of keys, we take the corresponding value from dictionary
+        #3  call _post_vep_batch() for each slice
+            #call the _post_vep_batch helper function with our list (batch) of variants and the endpoint URL
+            vep_api_result = _post_vep_batch(batch_variants, self._endpoint) 
+        #4 for each hit, look up the matching Variant by hit["input"] and call _apply_vep_result()
+            for hit in vep_api_result: #looping over each element in the list returned by _post_vep_batch
+                input_vep_region = hit["input"]
+                matching_variant = map.get(input_vep_region) #look up the matching Variant object from the dictionary using the input VEP region string
+                if input_vep_region in matching_variant:
+                    _apply_vep_result(matching_variant, hit) 
+        #5 Sleep RATE_LIMIT_PAUSE between batches
+            time.sleep(RATE_LIMIT_PAUSE)
+        #6 Return a new VariantCollection with the annotated variants
+        return VariantCollection(variants=list(map.values())) #return a new VariantCollection object
 
     def clear_cache(self) -> None:
         """Clear the internal response cache."""
