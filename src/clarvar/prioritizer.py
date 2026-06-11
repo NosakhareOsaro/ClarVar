@@ -159,7 +159,6 @@ class VariantPrioritizer:
         -------
         float
         """
-        print("Scores:", self.CONSEQUENCE_SCORES)
         return self.CONSEQUENCE_SCORES.get(variant.consequence,20,)
     
     def _score_clinvar(self, variant: Variant) -> float:
