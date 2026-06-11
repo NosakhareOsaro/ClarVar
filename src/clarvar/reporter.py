@@ -70,6 +70,12 @@ TSV_COLUMNS = [
     "priority_score",
 ]
 
+COLUMN_ATTR_MAP = {
+    "chrom":      "chromosome",
+    "pos":        "position",
+    "gnomad_af":  "allele_frequency",
+    "clinvar_sig": "clinvar_significance",
+}
 
 def write_tsv(
     variants: Union[List[Variant], VariantCollection],
@@ -92,7 +98,20 @@ def write_tsv(
     -------
     >>> write_tsv(prioritized, Path("results/variants.tsv"))
     """
-    raise NotImplementedError("TODO: implement write_tsv")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        f.write("\t".join(TSV_COLUMNS) + "\n")
+        for rank, variant in enumerate(variants, start=1):
+            row = []
+            for col in TSV_COLUMNS:
+                precision = 6 if col == "gnomad_af" else 2
+                if col == "rank":
+                    value = rank
+                else:
+                    attr = COLUMN_ATTR_MAP.get(col, col)  # fall back to col itself if no mapping needed
+                    value = getattr(variant, attr)
+                row.append(_fmt(value, precision))
+            f.write("\t".join(row) + "\n")
 
 
 def write_html_report(
@@ -153,7 +172,12 @@ def _fmt(value, precision: int = 2) -> str:
     -------
     str
     """
-    raise NotImplementedError("TODO: implement _fmt")
+    if value is None or value == "None":
+        return "."
+    elif isinstance(value, float):
+        return f"{value:.{precision}f}"
+    else:
+        return str(value)
 
 
 def _clinvar_badge(significance: Optional[str]) -> str:
