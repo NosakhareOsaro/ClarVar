@@ -71,10 +71,10 @@ TSV_COLUMNS = [
 ]
 
 COLUMN_ATTR_MAP = {
-    "chrom":      "chromosome",
-    "pos":        "position",
-    "gnomad_af":  "allele_frequency",
-    "clinvar_sig": "clinvar_significance",
+    "chrom":        "chromosome",
+    "pos":          "position",
+    "gnomad_af":    "allele_frequency",
+    "clinvar_sig":  "clinvar_significance",
 }
 
 def write_tsv(
@@ -151,7 +151,117 @@ def write_html_report(
     ...     filters={"max_af": 0.01, "min_cadd": 15},
     ... )
     """
-    raise NotImplementedError("TODO: implement write_html_report")
+
+    # report title
+    title_html = f"<h1>{html_module.escape(title)}</h1>"
+
+    # add input_path as optional header subtitle
+    input_html = ""
+    if input_path:
+        input_html = f'<div style="color:#7f8c8d;font-size:0.9em;margin-bottom:10px;">Input: {html_module.escape(str(input_path))}</div>'
+
+    # generation timestamp
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp_html = f'<div style="color:#7f8c8d;font-size:0.9em;margin-bottom:20px;">Generated on {timestamp}</div>'
+
+    # report filter summary bar
+    if filters:
+        filter_items = []
+        if "max_af" in filters:
+            filter_items.append(f"gnomAD AF &le; {filters['max_af']}")
+        if "min_cadd" in filters:
+            filter_items.append(f"CADD &ge; {filters['min_cadd']}")
+        if "consequences" in filters:
+            cons = ", ".join(filters["consequences"])
+            filter_items.append(f"Consequences: {cons}")
+        filter_summary = " | ".join(filter_items)
+        filter_html = f'<div style="background:#ecf0f1;padding:10px;border-radius:5px;margin-bottom:20px;">{filter_summary}</div>'
+    else:
+        filter_html = ""
+
+    # color coded table rows with ClinVar badges and priority bars
+    table_rows = []
+    for var in variants:
+        clinvar_badge = _clinvar_badge(var.clinvar_significance) 
+        priority_bar = _priority_bar(var.priority_score)
+        row_html = f"""
+        <tr>
+            <td>{var.chromosome}:{var.position} {var.ref}>{var.alt}</td>
+            <td><a href="https://www.omim.org/search?search={html_module.escape(var.gene or '')}">{html_module.escape(var.gene or '.')}</a></td>
+            <td>{html_module.escape(str(var.consequence) if var.consequence else ".")}</td>
+            <td>{html_module.escape(var.hgvsc or ".")}</td>
+            <td>{html_module.escape(var.hgvsp or ".")}</td>
+            <td>{_fmt(var.allele_frequency, 6)}</td>
+            <td>{_fmt(var.cadd_phred)}</td>
+            <td>{clinvar_badge}</td>
+            <td>{f'<a href="https://www.ncbi.nlm.nih.gov/clinvar/variation/{html_module.escape(var.clinvar_id)}/">{html_module.escape(var.clinvar_id)}</a>' if var.clinvar_id else "."}</td>
+            <td>{_fmt(var.sift)}</td>
+            <td>{_fmt(var.polyphen)}</td>
+            <td>{priority_bar}</td>
+        </tr>
+        """
+        table_rows.append(row_html)
+    
+    table_html = f"""
+    <table style="width:100%;border-collapse:collapse;">
+        <thead>
+            <tr>
+                <th>Variant</th>
+                <th>Gene</th>
+                <th>Consequence</th>
+                <th>HGVSc</th>
+                <th>HGVSp</th>
+                <th>gnomAD AF</th>
+                <th>CADD</th>
+                <th>ClinVar Sig</th>
+                <th>ClinVar ID</th>
+                <th>SIFT</th>
+                <th>PolyPhen</th>
+                <th>Priority Score</th>
+            </tr>
+        </thead>
+        <tbody>
+            {''.join(table_rows)}
+        </tbody>
+    </table>
+    """
+
+    # generate final HTML
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>{html_module.escape(title)}</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 20px; }}
+            table, th, td {{ border: 1px solid #bdc3c7; }}
+            th, td {{ padding: 8px; text-align: left; }}
+            th {{ background-color: #ecf0f1; }}
+            tr:nth-child(even) {{ background-color: #f9f9f9; }}
+        </style>
+    </head>
+    <body>
+        {title_html}
+        {input_html}
+        {timestamp_html}
+        {filter_html}
+        {table_html}
+    </body>
+    </html>
+    """
+
+    # write to file (added date-based suffix if file already exists to avoid overwriting)
+    if path.exists():
+        timestamp_suffix = datetime.now().strftime("%Y%m%d%H%M%S")
+        path = path.with_name(f"{path.stem}_{timestamp_suffix}{path.suffix}")
+        print(f"Warning: report already exists. Writing to {path} instead.")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w",  encoding="utf-8") as f:
+        f.write(html_content)
+
+    return path
 
 
 # ── Internal helpers — implement these to keep write_html_report clean ────────
@@ -206,7 +316,22 @@ def _clinvar_badge(significance: Optional[str]) -> str:
     str
         HTML string for the badge, or "" if significance is None.
     """
-    raise NotImplementedError("TODO: implement _clinvar_badge")
+    colours = {
+        "pathogenic": "#c0392b",
+        "likely_pathogenic": "#e67e22",
+        "uncertain_significance": "#8e44ad",
+        "likely_benign": "#27ae60",
+        "benign": "#27ae60",
+    }
+    
+    if not significance:
+        return ""
+
+    sig = significance.lower()
+    colour = colours.get(sig, "#7f8c8d")
+    label = html_module.escape(sig)
+    
+    return f'<span style="background:{colour}; color:#fff; padding:2px 6px; border-radius:3px;">{label}</span>'
 
 
 def _priority_bar(score: float, max_score: float = 100) -> str:
@@ -232,4 +357,38 @@ def _priority_bar(score: float, max_score: float = 100) -> str:
     str
         HTML string.
     """
-    raise NotImplementedError("TODO: implement _priority_bar")
+
+    if score is None:
+        score = 0.0
+
+    # Ensure numeric and round for display
+    try:
+        score = float(score)
+    except Exception:
+        score = 0.0
+
+    score_display = round(score, 1)
+
+    # determine width as percentage of max_score, capped at 100%
+    if max_score <= 0:
+        pct = 0
+    else:
+        pct = max(0.0, min(100.0, (score / max_score) * 100.0))
+
+    # colour changes based on severity
+    if score >= 60:
+        colour = "#e74c3c"
+    elif score >= 35:
+        colour = "#e67e22"
+    else:
+        colour = "#3498db"
+
+    # fixed-width background with inner coloured bar and score text to the right
+    return (
+        f'<div style="display:inline-flex; align-items:center; gap:8px;">'
+        f'<div style="background:#eee; border-radius:4px; width:100px; height:16px; overflow:hidden;">'
+        f'<div style="background:{colour}; width:{pct}%; height:100%;"></div>'
+        f'</div>'
+        f'<span style="font-size:0.9em;">{score_display}</span>'
+        f'</div>'
+    )
