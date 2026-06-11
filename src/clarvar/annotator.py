@@ -265,9 +265,7 @@ def _apply_vep_result(variant: Variant, vep_hit: Dict[str, Any]) -> None:
     vep_hit : dict
         A single element from the VEP JSON response list.
     """
-    transcript=_pick_most_severe_transcript(vep_hit)
-    if transcript is None:
-        return
+   
     transcripts = vep_hit.get("transcript_consequences", [])
     transcript = _pick_most_severe_transcript(transcripts)
     
@@ -418,7 +416,8 @@ class VariantAnnotator:
         Variant
             The same object, with annotation fields populated in-place.
         """
-        raise NotImplementedError("TODO: implement annotate_variant")
+        col = VariantCollection(variants=[variant])
+        return self.annotate_collection(col).variants[0]
 
     def annotate_collection(self, collection, verbose=False):
         import sys
@@ -441,6 +440,7 @@ class VariantAnnotator:
             time.sleep(RATE_LIMIT_PAUSE)
 
         return VariantCollection(variants=list(region_map.values()))
+    
     def clear_cache(self) -> None:
         """Clear the internal response cache."""
         self._response_cache.clear()
