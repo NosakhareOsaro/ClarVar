@@ -15,7 +15,14 @@ dist/
 .coverage
 htmlcov/
 .cache/
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
 
+# Pytest
+.pytest_cache/
+s
 # Virtual environments
 venv/
 .venv/
@@ -31,3 +38,6 @@ env/
 
 # ClarVar pipeline outputs
 results/
+
+# VS Code
+.vscode/

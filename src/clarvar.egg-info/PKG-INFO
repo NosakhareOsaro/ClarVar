@@ -1,0 +1,397 @@
+Metadata-Version: 2.4
+Name: clarvar
+Version: 0.2.0
+Summary: Open-Source Variant Annotation & Prioritisation Pipeline for Clinical Genomics
+License: MIT
+Project-URL: Homepage, https://github.com/NosakhareOsaro/ClarVar
+Project-URL: Bug Tracker, https://github.com/NosakhareOsaro/ClarVar/issues
+Keywords: bioinformatics,genomics,vcf,variant-annotation,vep,gnomad,clinvar
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Bio-Informatics
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: License :: OSI Approved :: MIT License
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: click>=8.1
+Requires-Dist: requests>=2.31
+Provides-Extra: dev
+Requires-Dist: pytest>=7.4; extra == "dev"
+Requires-Dist: pytest-cov>=4.1; extra == "dev"
+Dynamic: license-file
+
+# ClarVar: Open-Source Variant Annotation & Prioritisation Pipeline
+
+<div align="center">
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org)
+[![Tests](https://img.shields.io/badge/tests-62%20passing-brightgreen.svg)](#running-tests)
+[![Status: Alpha](https://img.shields.io/badge/Status-Alpha-orange.svg)](https://github.com/NosakhareOsaro/ClarVar)
+
+**A lightweight, reproducible pipeline for annotating and prioritising genetic variants from clinical sequencing data.**
+
+[Features](#features) · [Quick Start](#quick-start) · [How It Works](#how-it-works) · [Data Sources](#data-sources) · [Contributing](#contributing)
+
+</div>
+
+---
+
+## Overview
+
+Clinical sequencing can produce **thousands of variants per sample**, but identifying the few that matter remains a major challenge. ClarVar addresses this by providing a lightweight, open-source pipeline that integrates:
+
+- **Consequence prediction** via [Ensembl VEP](https://www.ensembl.org/vep) REST API (frameshift, missense, splice sites, and more)
+- **Population allele frequencies** from [gnomAD v4.1](https://gnomad.broadinstitute.org/) (730,947 exomes + 76,215 genomes on GRCh38)
+- **Clinical evidence** from [ClinVar](https://www.ncbi.nlm.nih.gov/clinvar/) (pathogenicity classifications and disease associations)
+- **In silico pathogenicity scores** — CADD PHRED, SIFT, and PolyPhen-2
+- **Evidence-based priority scoring** that ranks variants by composite clinical importance
+
+ClarVar requires only Python and an internet connection. No local VEP installation, no database downloads, no HPC cluster needed to get started.
+
+---
+
+## Features
+
+- Parses `.vcf` and `.vcf.gz` files; handles multi-allelic sites and skips structural variants
+- Batched VEP REST API calls (200 variants/request) with automatic rate-limit handling
+- Configurable filters: gnomAD AF ceiling, CADD floor, consequence whitelist
+- Three built-in ranking strategies (default, rarity-first, clinical-evidence-first)
+- TSV output + self-contained HTML report with ClinVar badges and OMIM links
+- JSON summary report with consequence and ClinVar distributions
+- Clean Python API for programmatic access and custom workflows
+- 62 unit tests; live API integration test suite (opt-in)
+
+---
+
+## Quick Start
+
+### Installation
+
+```bash
+git clone https://github.com/NosakhareOsaro/ClarVar.git
+cd ClarVar
+pip install -e ".[dev]"
+```
+
+Verify the install:
+
+```bash
+clarvar --version
+pytest tests/ -v        # 62 tests should pass
+```
+
+### Run the example
+
+```bash
+clarvar pipeline -i data/sample/sample_variants.vcf -o results/ --verbose
+```
+
+This produces four files in `results/`:
+
+| File | Description |
+|---|---|
+| `prioritised.vcf` | Annotated VCF with CADD, gnomAD AF, ClinVar in INFO fields |
+| `prioritised_variants.tsv` | Ranked tab-separated table, one variant per row |
+| `report.json` | JSON summary with top variants and distributions |
+| `report.html` | Self-contained HTML report — open in any browser |
+
+### CLI reference
+
+All commands write outputs into the directory given by `-o` (created automatically).
+
+```bash
+# Full pipeline — annotation + prioritisation + all four output files
+clarvar pipeline -i input.vcf -o results/
+
+# Annotate only (writes annotated.vcf into the output directory)
+clarvar annotate -i raw.vcf -o results/
+
+# Prioritise a pre-annotated VCF
+clarvar prioritize -i annotated.vcf -o results/
+```
+
+**Available flags:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `-i / --input` | required | Input VCF file (`.vcf` or `.vcf.gz`) |
+| `-o / --output` | required | Output directory (created if it does not exist) |
+| `-a / --assembly` | `GRCh38` | Genome assembly — `GRCh38` or `GRCh37` |
+| `--no-html` | off | Skip HTML report (useful in automated/HPC pipelines) |
+| `--top-n N` | `50` | Number of variants shown in the HTML report |
+| `-v / --verbose` | off | Print progress and debug logging |
+
+```bash
+# GRCh37 assembly
+clarvar pipeline -i patient.vcf -o results/ -a GRCh37
+
+# Skip HTML generation
+clarvar pipeline -i patient.vcf -o results/ --no-html
+
+# Show top 100 variants in the HTML report
+clarvar pipeline -i patient.vcf -o results/ --top-n 100
+```
+
+---
+
+## Python API
+
+```python
+from clarvar.vcf_parser import VCFParser
+from clarvar.annotator import VariantAnnotator
+from clarvar.prioritizer import VariantPrioritizer
+from clarvar.reporter import write_tsv, write_html_report
+from pathlib import Path
+
+# 1. Parse
+parser = VCFParser()
+variants = parser.parse_file("patient.vcf")
+print(f"Parsed {len(variants)} variants")
+
+# 2. Annotate (calls Ensembl VEP REST API)
+annotator = VariantAnnotator(assembly="GRCh38")
+annotated = annotator.annotate_collection(variants, verbose=True)
+
+# 3. Prioritise
+prioritizer = VariantPrioritizer()           # balanced default weights
+prioritized = prioritizer.prioritize_collection(annotated)
+
+# 4. Output
+write_tsv(prioritized, Path("results/variants.tsv"))
+write_html_report(prioritized.top_n(50), Path("results/report.html"))
+
+report = prioritizer.generate_report(prioritized)
+print(f"Top variant: {report['top_variants'][0]}")
+```
+
+### Alternative ranking strategies
+
+```python
+from clarvar.prioritizer import RarityFirstStrategy, ClinicalEvidenceFirstStrategy
+
+# Emphasise rare variants (high frequency weight)
+ranked = RarityFirstStrategy().rank(list(annotated))
+
+# Emphasise ClinVar-classified variants
+ranked = ClinicalEvidenceFirstStrategy().rank(list(annotated))
+```
+
+### GRCh37 support
+
+```python
+annotator = VariantAnnotator(assembly="GRCh37")
+```
+
+### Offline / HPC annotation
+
+```python
+from clarvar.annotator import LocalAnnotator
+
+la = LocalAnnotator(db_path="/data/annotation_db")
+la.load_databases()   # implement loading from local VCF/TSV databases
+annotated = la.annotate_collection(variants)
+```
+
+---
+
+## How It Works
+
+### Pipeline
+
+```
+Input VCF (.vcf / .vcf.gz)
+        │
+        ▼
+[VCFParser]  ── parse variants, normalise chromosomes, skip SVs
+        │
+        ▼
+[VariantAnnotator]  ── batch POST to Ensembl VEP REST API
+        │                 ├── consequence + HGVS notation
+        │                 ├── CADD PHRED / SIFT / PolyPhen-2
+        │                 ├── gnomAD v4.1 allele frequency
+        │                 └── ClinVar clinical significance
+        ▼
+[VariantPrioritizer]  ── filter + score + sort
+        │
+        ▼
+[Reporter]  ── TSV table  +  HTML report  +  JSON summary
+```
+
+### Priority score (0–100)
+
+| Component | Weight | Notes |
+|---|---|---|
+| Consequence severity | 40% | Frameshift/stop = 100, missense = 40, synonymous = 10 |
+| ClinVar significance | 40% | Pathogenic = 100, VUS = 30, benign = 5 |
+| Population frequency | 20% | AF < 0.01% → 100, AF > 10% → 20 |
+
+**Final score** = 0.4 × consequence + 0.4 × ClinVar + 0.2 × frequency
+
+ClinVar-pathogenic variants are never filtered out by consequence filters, regardless of their VEP consequence term.
+
+---
+
+## Data Sources
+
+| Source | What it provides | Version / Release |
+|---|---|---|
+| [Ensembl VEP REST](https://rest.ensembl.org) | Consequence, CADD, SIFT, PolyPhen | v115 (GRCh38), v111 (GRCh37) |
+| [gnomAD](https://gnomad.broadinstitute.org) | Population allele frequencies | v4.1 (730,947 exomes, 76,215 genomes) |
+| [ClinVar](https://www.ncbi.nlm.nih.gov/clinvar/) | Clinical significance | Weekly release |
+
+All sources are publicly available and require no data access agreement.
+
+**References:**
+1. McLaren W et al. (2016) The Ensembl Variant Effect Predictor. *Genome Biology*, 17:122.
+2. Karczewski KJ et al. (2020) The mutational constraint spectrum from variation in 141,456 humans. *Nature*, 581:434–443.
+3. Landrum MJ et al. (2018) ClinVar: improving access to variant interpretations. *Nucleic Acids Research*, 46:D1062–D1067.
+4. Rentzsch P et al. (2019) CADD: predicting the deleteriousness of variants throughout the human genome. *Nucleic Acids Research*, 47:D886–D894.
+5. Richards S et al. (2015) Standards and guidelines for the interpretation of sequence variants. *Genetics in Medicine*, 17:405–423.
+
+---
+
+## Project Structure
+
+```
+ClarVar/
+├── src/clarvar/
+│   ├── __init__.py
+│   ├── variant.py        # Variant + VariantCollection dataclasses
+│   ├── vcf_parser.py     # VCF I/O (.vcf and .vcf.gz)
+│   ├── annotator.py      # Ensembl VEP REST API integration
+│   ├── prioritizer.py    # Scoring, filtering, ranking strategies
+│   ├── reporter.py       # TSV + HTML output
+│   └── cli.py            # click-based CLI
+├── tests/
+│   ├── conftest.py       # Shared fixtures
+│   ├── test_variant.py
+│   ├── test_annotator.py # Mocked API tests + optional live tests
+│   └── test_prioritizer.py
+├── data/sample/
+│   └── sample_variants.vcf
+├── docs/
+│   └── ARCHITECTURE.md
+├── pyproject.toml
+├── CONTRIBUTING.md
+├── LICENSE
+└── README.md
+```
+
+---
+
+## Running Tests
+
+```bash
+# Full offline test suite (62 tests, no API calls)
+pytest tests/ -v
+
+# Include live Ensembl VEP API tests (requires internet)
+CLARVAR_LIVE_TESTS=1 pytest tests/ -v
+
+# With coverage report
+pytest tests/ --cov=clarvar --cov-report=html
+```
+
+---
+
+## Requirements
+
+- Python ≥ 3.10
+- `click` ≥ 8.1
+- `requests` ≥ 2.31
+- Internet access for VEP annotation (or use `LocalAnnotator` for offline mode)
+
+---
+
+## Comparison with Other Tools
+
+| Feature | ClarVar | bcftools | Ensembl VEP |
+|---|---|---|---|
+| Lightweight (pip install) | ✅ | ✅ | ❌ |
+| Real VEP annotation | ✅ | ❌ | ✅ |
+| gnomAD v4.1 frequencies | ✅ | ✅ | ✅ |
+| ClinVar integration | ✅ | ✅ | ✅ |
+| CADD / SIFT / PolyPhen | ✅ | ❌ | ✅ |
+| Composite priority scoring | ✅ | ❌ | ❌ |
+| HTML report with links | ✅ | ❌ | ❌ |
+| Python API | ✅ | ❌ | ✅ |
+| No local DB required | ✅ | ❌ | ❌ |
+
+---
+
+## Limitations
+
+- Requires internet access for VEP annotation (use `LocalAnnotator` for offline use)
+- Annotation speed is ~3–5 seconds per 200-variant batch due to the Ensembl VEP rate limit; large cohorts benefit from local VEP
+- Single-sample VCF files only (multi-sample support planned)
+- Structural variants are skipped
+- VEP REST API has a rate limit (~15 requests/second); large cohorts benefit from local VEP
+
+---
+
+## Roadmap
+
+**v0.2.0** (current) — Real Ensembl VEP API, gnomAD v4.1, HTML/TSV/JSON reports, 62 passing tests  
+**v0.3.0** (planned) — HPO gene filtering, Snakemake wrapper, multi-sample VCF support  
+**v0.4.0** (planned) — Local VEP / offline mode, Docker image for HPC  
+**v1.0.0** (planned) — Benchmarked against ClinVar gold standard, performance-optimised for large cohorts  
+
+---
+
+## Contributing
+
+Contributions are welcome. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow, coding standards, and PR guidelines.
+
+```bash
+# Fork and clone
+git clone https://github.com/YOUR-USERNAME/ClarVar.git
+cd ClarVar
+
+# Create a branch
+git checkout -b feature/my-feature
+
+# Install in dev mode
+pip install -e ".[dev]"
+
+# Make changes, write tests, then
+pytest tests/ -v
+git commit -m "Add: description of change"
+git push origin feature/my-feature
+# → open a Pull Request on GitHub
+```
+
+GitHub Issues are labelled by difficulty — look for **good first issue** to get started.
+
+---
+
+## Citation
+
+If you use ClarVar in your research, please cite:
+
+```bibtex
+@software{clarvar2026,
+  author       = {Osaro, Nosakhare Odionfo and the ClarVar Team},
+  title        = {ClarVar: Open-Source Variant Annotation and Prioritisation Pipeline},
+  year         = {2026},
+  version      = {0.2.0},
+  url          = {https://github.com/NosakhareOsaro/ClarVar},
+  license      = {MIT}
+}
+```
+
+---
+
+## License
+
+MIT — free to use, modify, and distribute. See [LICENSE](LICENSE) for details.
+
+---
+
+## Acknowledgements
+
+Built during the University of Glasgow CompBio Hackathon 2026. Data from Ensembl VEP, gnomAD, and ClinVar. Inspired by the nf-core community's commitment to reproducible, well-maintained bioinformatics tools.
