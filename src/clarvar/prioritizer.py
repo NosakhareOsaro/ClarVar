@@ -93,12 +93,35 @@ class VariantPrioritizer:
     # ── Scoring tables — fill these in ───────────────────────────────────────
 
     CONSEQUENCE_SCORES: Dict[Consequence, float] = {
-        # TODO: populate from the scoring model in the module docstring
+       Consequence.FRAMESHIFT: 100,
+        Consequence.STOP_GAINED: 100,
+
+        Consequence.SPLICE_ACCEPTOR: 95,
+        Consequence.SPLICE_DONOR: 95,
+        Consequence.STOP_LOST: 95,
+
+        Consequence.START_LOST: 90,
+
+        Consequence.INFRAME_DELETION: 70,
+        Consequence.INFRAME_INSERTION: 70,
+
+        Consequence.MISSENSE: 40,
+
+        Consequence.SYNONYMOUS: 10,
+
+        Consequence.UPSTREAM: 5,
+        Consequence.DOWNSTREAM: 5,
+
+        Consequence.INTERGENIC: 0,
     }
+    
 
     CLINVAR_SCORES: Dict[str, float] = {
-        # TODO: populate from the scoring model in the module docstring
-        # Keys should be lowercase ClinVar significance strings
+         "pathogenic": 100,
+        "likely_pathogenic": 80,
+        "uncertain_significance": 30,
+        "likely_benign": 10,
+        "benign": 5,
     }
 
     def __init__(
@@ -136,8 +159,8 @@ class VariantPrioritizer:
         -------
         float
         """
-        raise NotImplementedError("TODO: implement _score_consequence")
-
+        return self.CONSEQUENCE_SCORES.get(variant.consequence,20,)
+    
     def _score_clinvar(self, variant: Variant) -> float:
         """
         Return a ClinVar significance score (0–100) for the variant.
@@ -153,8 +176,12 @@ class VariantPrioritizer:
         -------
         float
         """
-        raise NotImplementedError("TODO: implement _score_clinvar")
 
+        if not variant.clinvar_significance:
+            return 20
+
+        return self.CLINVAR_SCORES.get(variant.clinvar_significance.lower(),20,)
+    
     def _score_frequency(self, variant: Variant) -> float:
         """
         Return a population rarity score (0–100) for the variant.
@@ -171,8 +198,21 @@ class VariantPrioritizer:
         -------
         float
         """
-        raise NotImplementedError("TODO: implement _score_frequency")
+        af = variant.allele_frequency
 
+        if af is None:
+            return 50
+
+        if af < 0.0001:
+            return 100
+        elif af < 0.01:
+            return 80
+        elif af < 0.05:
+            return 60
+        elif af < 0.1:
+            return 40
+        else:
+            return 20
     # ── Main prioritisation methods ───────────────────────────────────────────
 
     def prioritize_variant(self, variant: Variant) -> Variant:
@@ -194,7 +234,12 @@ class VariantPrioritizer:
         Variant
             Same object with priority_score set.
         """
-        raise NotImplementedError("TODO: implement prioritize_variant")
+        score = ((self.consequence_weight * self._score_consequence(variant))
+                 + (self.clinvar_weight     * self._score_clinvar(variant))
+                 + (self.frequency_weight   * self._score_frequency(variant)))
+
+        variant.priority_score = score
+        return variant
 
     def prioritize_collection(
         self, collection: VariantCollection
@@ -212,7 +257,11 @@ class VariantPrioritizer:
             New collection with all variants scored and sorted descending
             by priority_score.
         """
-        raise NotImplementedError("TODO: implement prioritize_collection")
+        for variant in collection:
+            self.prioritize_variant(variant)  
+
+        sorted_variants = sorted(collection, key=lambda v: v.priority_score, reverse=True)
+        return VariantCollection(variants=sorted_variants)
 
     # ── Reporting ─────────────────────────────────────────────────────────────
 

@@ -155,7 +155,20 @@ def _pick_most_severe_transcript(
     dict or None
         The most severe transcript dict, or None if the list is empty.
     """
-    raise NotImplementedError("TODO: implement _pick_most_severe_transcript")
+    if not transcripts:
+        return None
+
+    most_severe = None
+    lowest_rank = float('inf')
+
+    for transcript in transcripts:
+        for term in transcript.get("consequence_terms", []):
+            rank = CONSEQUENCE_SEVERITY.get(term, float('inf'))
+            if rank < lowest_rank:
+                lowest_rank = rank
+                most_severe = transcript
+
+    return most_severe
 
 
 def _extract_gnomad_af(vep_hit: Dict[str, Any]) -> Optional[float]:
@@ -211,7 +224,19 @@ def _extract_clinvar(
         significance — comma-joined string if multiple values
         clinvar_id   — first ClinVar ID, or None
     """
-    raise NotImplementedError("TODO: implement _extract_clinvar")
+    for colocated in vep_hit.get("colocated_variants", []):
+        # Skip somatic (e.g. tumour-acquired) records — ClarVar is germline-only.
+        if colocated.get("somatic"):
+            continue
+
+        clin_sig = colocated.get("clin_sig")
+        if clin_sig:
+            significance = ", ".join(clin_sig) if isinstance(clin_sig, list) else str(clin_sig)
+            clinvar_ids = colocated.get("var_synonyms", {}).get("ClinVar")
+            clinvar_id = clinvar_ids[0] if clinvar_ids else None
+            return significance, clinvar_id
+
+    return None, None
 
 
 def _apply_vep_result(variant: Variant, vep_hit: Dict[str, Any]) -> None:
