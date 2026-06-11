@@ -234,12 +234,7 @@ class VariantPrioritizer:
         Variant
             Same object with priority_score set.
         """
-        score = ((self.consequence_weight * self._score_consequence(variant))
-                 + (self.clinvar_weight     * self._score_clinvar(variant))
-                 + (self.frequency_weight   * self._score_frequency(variant)))
-
-        variant.priority_score = score
-        return variant
+        raise NotImplementedError("TODO: implement prioritize_variant")
 
     def prioritize_collection(
         self, collection: VariantCollection
@@ -292,20 +287,63 @@ class VariantPrioritizer:
         -------
         dict
         """
-        raise NotImplementedError("TODO: implement generate_report")
+        if not collection:
+            return {"total_variants": 0,"mean_priority": 0,"top_variants": [],}
 
+        scores = [v.priority_score for v in collection]
+
+        top_variants = []
+
+        for v in sorted(collection,key=lambda x: x.priority_score,reverse=True,)[:20]:
+
+            top_variants.append(
+                {
+                    "variant": str(v),
+                    "gene": v.gene,
+                    "consequence": str(v.consequence),
+                    "clinvar": v.clinvar_significance,
+                    "frequency": v.allele_frequency,
+                    "score": v.priority_score,
+                }
+            )
+
+        return {
+            "total_variants": len(collection),
+            "mean_priority": mean(scores),
+            "median_priority": median(scores),
+            "max_priority": max(scores),
+            "min_priority": min(scores),
+            "top_variants": top_variants,
+            "consequence_distribution":
+                self._get_consequence_distribution(collection),
+            "clinvar_distribution":
+                self._get_clinvar_distribution(collection),
+        }
+    
     def _get_consequence_distribution(
         self, collection: VariantCollection
     ) -> Dict[str, int]:
         """Return a count of variants by consequence term string."""
-        raise NotImplementedError("TODO: implement _get_consequence_distribution")
-
+        distribution={}
+        for variant in collection:
+            consequence=str(variant.consequence)
+            distribution[consequence]=(distribution.get(consequence,0)+1)
+        return distribution
+    
     def _get_clinvar_distribution(
         self, collection: VariantCollection
     ) -> Dict[str, int]:
         """Return a count of variants by ClinVar significance string."""
-        raise NotImplementedError("TODO: implement _get_clinvar_distribution")
+        distribution = {}
 
+        for variant in collection:
+            clinvar = variant.clinvar_significance or "none"
+
+            distribution[clinvar] = (
+                distribution.get(clinvar, 0) + 1
+            )
+
+        return distribution
 
 # ── Ranking strategies ────────────────────────────────────────────────────────
 
