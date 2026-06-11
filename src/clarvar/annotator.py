@@ -132,7 +132,7 @@ def _to_vep_region(variant: Variant) -> str:
     """
     
     end = variant.position + len(variant.ref) - 1
-    return (f"{variant.chromosome} "f"{variant.position} "f"{end} "f"{variant.ref}/{variant.alt} "f"1")
+    return f"{variant.chromosome} {variant.position} {end} {variant.ref}/{variant.alt} 1"
 
 def _pick_most_severe_transcript(
     transcripts: List[Dict[str, Any]]
@@ -265,7 +265,35 @@ def _apply_vep_result(variant: Variant, vep_hit: Dict[str, Any]) -> None:
     vep_hit : dict
         A single element from the VEP JSON response list.
     """
-    raise NotImplementedError("TODO: implement _apply_vep_result")
+    transcript=_pick_most_severe_transcript(vep_hit)
+    if transcript is None:
+        return
+    transcripts = vep_hit.get("transcript_consequences", [])
+    transcript = _pick_most_severe_transcript(transcripts)
+    
+    variant.gene=(transcript.get("gene_symbol") or transcript.get("gene_id"))
+             
+    variant.transcript=transcript.get("transcript_id")
+
+    terms = transcript.get("consequence_terms", [])
+    if terms:
+        variant.consequence = Consequence.from_vep_string(terms[0])
+
+    variant.hgvsc = transcript.get("hgvsc")
+    variant.hgvsp = transcript.get("hgvsp")
+
+    variant.sift = transcript.get("sift_prediction")
+    variant.polyphen = transcript.get("polyphen_prediction")
+   
+    cadd= transcript.get("cadd_phred")
+    if cadd is not None:
+        variant.cadd_phred=float(cadd)
+    
+    variant.allele_frequency = _extract_gnomad_af(vep_hit)
+
+    sig, cid = _extract_clinvar(vep_hit)
+    variant.clinvar_significance = sig
+    variant.clinvar_id = cid
 
 
 def _post_vep_batch(
