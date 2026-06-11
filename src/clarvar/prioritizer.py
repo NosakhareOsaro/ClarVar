@@ -375,8 +375,13 @@ class ConsequenceOnlyStrategy(RankingStrategy):
     """
 
     def rank(self, variants: List[Variant]) -> List[Variant]:
-        raise NotImplementedError("TODO: implement ConsequenceOnlyStrategy.rank")
+        prioritizer = VariantPrioritizer(
+        consequence_weight=1.0,
+        clinvar_weight=0.0,
+        frequency_weight=0.0,
+    )
 
+        return prioritizer.prioritize_collection(variants)
 
 class RarityFirstStrategy(RankingStrategy):
     """
@@ -388,8 +393,13 @@ class RarityFirstStrategy(RankingStrategy):
     """
 
     def rank(self, variants: List[Variant]) -> List[Variant]:
-        raise NotImplementedError("TODO: implement RarityFirstStrategy.rank")
+        prioritizer = VariantPrioritizer(
+        consequence_weight=0.2,
+        clinvar_weight=0.2,
+        frequency_weight=0.6,
+    )
 
+        return prioritizer.prioritize_collection(variants)
 
 class ClinicalEvidenceFirstStrategy(RankingStrategy):
     """
@@ -401,6 +411,10 @@ class ClinicalEvidenceFirstStrategy(RankingStrategy):
     """
 
     def rank(self, variants: List[Variant]) -> List[Variant]:
-        raise NotImplementedError(
-            "TODO: implement ClinicalEvidenceFirstStrategy.rank"
-        )
+        prioritizer = VariantPrioritizer(
+        consequence_weight=0.2,
+        clinvar_weight=0.6,
+        frequency_weight=0.2,
+    )
+
+        return prioritizer.prioritize_collection(variants)
