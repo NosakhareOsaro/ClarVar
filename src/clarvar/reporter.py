@@ -70,6 +70,12 @@ TSV_COLUMNS = [
     "priority_score",
 ]
 
+COLUMN_ATTR_MAP = {
+    "chrom":        "chromosome",
+    "pos":          "position",
+    "gnomad_af":    "allele_frequency",
+    "clinvar_sig":  "clinvar_significance",
+}
 
 def write_tsv(
     variants: Union[List[Variant], VariantCollection],
