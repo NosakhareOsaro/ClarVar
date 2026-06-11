@@ -132,7 +132,7 @@ def _to_vep_region(variant: Variant) -> str:
     """
     
     end = variant.position + len(variant.ref) - 1
-    return (f"{variant.chromosome} "f"{variant.position} "f"{end} "f"{variant.ref}/{variant.alt} "f"1")
+    return f"{variant.chromosome} {variant.position} {end} {variant.ref}/{variant.alt} 1"
 
 def _pick_most_severe_transcript(
     transcripts: List[Dict[str, Any]]
@@ -265,7 +265,33 @@ def _apply_vep_result(variant: Variant, vep_hit: Dict[str, Any]) -> None:
     vep_hit : dict
         A single element from the VEP JSON response list.
     """
-    raise NotImplementedError("TODO: implement _apply_vep_result")
+   
+    transcripts = vep_hit.get("transcript_consequences", [])
+    transcript = _pick_most_severe_transcript(transcripts)
+    
+    variant.gene=(transcript.get("gene_symbol") or transcript.get("gene_id"))
+             
+    variant.transcript=transcript.get("transcript_id")
+
+    terms = transcript.get("consequence_terms", [])
+    if terms:
+        variant.consequence = Consequence.from_vep_string(terms[0])
+
+    variant.hgvsc = transcript.get("hgvsc")
+    variant.hgvsp = transcript.get("hgvsp")
+
+    variant.sift = transcript.get("sift_prediction")
+    variant.polyphen = transcript.get("polyphen_prediction")
+   
+    cadd= transcript.get("cadd_phred")
+    if cadd is not None:
+        variant.cadd_phred=float(cadd)
+    
+    variant.allele_frequency = _extract_gnomad_af(vep_hit)
+
+    sig, cid = _extract_clinvar(vep_hit)
+    variant.clinvar_significance = sig
+    variant.clinvar_id = cid
 
 
 def _post_vep_batch(
@@ -302,7 +328,40 @@ def _post_vep_batch(
     list of dict
         Parsed JSON response, or [] on failure.
     """
-    raise NotImplementedError("TODO: implement _post_vep_batch")
+    payload = {
+        "variants": [_to_vep_region(v) for v in variants],
+        "CADD": 1,
+        "gnomAD": 1,
+        "ClinVar": 1,
+        "canonical": 1,
+        "pick": 1,
+    }
+    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = requests.post(
+                endpoint, json=payload, headers=headers, timeout=30
+            )
+
+            if response.status_code == 200:
+                return response.json()
+
+            if response.status_code == 429:
+                wait = int(response.headers.get("Retry-After", 1))
+                logger.warning("VEP rate-limited; waiting %ss before retry", wait)
+                time.sleep(wait)
+                continue
+
+            logger.warning("VEP returned HTTP %s", response.status_code)
+
+        except requests.RequestException as err:
+            logger.warning("VEP request failed: %s", err)
+
+        time.sleep(2 ** attempt)
+
+    logger.warning("VEP batch failed after %s attempts; returning []", MAX_RETRIES)
+    return []
 
 
 # ── Public classes ────────────────────────────────────────────────────────────
@@ -357,41 +416,31 @@ class VariantAnnotator:
         Variant
             The same object, with annotation fields populated in-place.
         """
-        raise NotImplementedError("TODO: implement annotate_variant")
+        col = VariantCollection(variants=[variant])
+        return self.annotate_collection(col).variants[0]
 
-    def annotate_collection(
-        self,
-        collection: VariantCollection,
-        verbose: bool = False,
-    ) -> VariantCollection:
-        """
-        Annotate all variants in a VariantCollection via the VEP REST API.
+    def annotate_collection(self, collection, verbose=False):
+        import sys
+        region_map = {_to_vep_region(v): v for v in collection.variants}
+        vep_keys = list(region_map.keys())
 
-        Sends variants in batches of BATCH_SIZE. After each batch, waits
-        RATE_LIMIT_PAUSE seconds to respect Ensembl's rate limit.
+        for i in range(0, len(vep_keys), BATCH_SIZE):
+            batch_keys = vep_keys[i: i + BATCH_SIZE]
+            batch_variants = [region_map[k] for k in batch_keys]
+            results = _post_vep_batch(batch_variants, self._endpoint)
 
-        Implementation steps:
-        1. Build a dict mapping VEP region string → Variant object
-        2. Loop over variants in slices of BATCH_SIZE
-        3. Call _post_vep_batch() for each slice
-        4. For each hit in the response, look up the matching Variant by
-           hit["input"] and call _apply_vep_result()
-        5. Sleep RATE_LIMIT_PAUSE between batches
-        6. Return a new VariantCollection with the annotated variants
+            for hit in results:
+                matching = region_map.get(hit.get("input", ""))
+                if matching is not None:
+                    _apply_vep_result(matching, hit)
 
-        Parameters
-        ----------
-        collection : VariantCollection
-        verbose : bool
-            If True, print progress to stderr.
+            if verbose:
+                print(f"  [annotator] {min(i + BATCH_SIZE, len(vep_keys))}/{len(vep_keys)} annotated", file=sys.stderr)
 
-        Returns
-        -------
-        VariantCollection
-            New collection with annotation fields populated on every Variant.
-        """
-        raise NotImplementedError("TODO: implement annotate_collection")
+            time.sleep(RATE_LIMIT_PAUSE)
 
+        return VariantCollection(variants=list(region_map.values()))
+    
     def clear_cache(self) -> None:
         """Clear the internal response cache."""
         self._response_cache.clear()
