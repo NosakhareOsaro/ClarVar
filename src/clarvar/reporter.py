@@ -153,7 +153,12 @@ def _fmt(value, precision: int = 2) -> str:
     -------
     str
     """
-    raise NotImplementedError("TODO: implement _fmt")
+    if value is None or value == "None":
+        return "."
+    elif isinstance(value, float):
+        return f"{value:.{precision}f}"
+    else:
+        return str(value)
 
 
 def _clinvar_badge(significance: Optional[str]) -> str:
