@@ -261,7 +261,7 @@ class VariantPrioritizer:
             self.prioritize_variant(variant)  
 
         sorted_variants = sorted(collection, key=lambda v: v.priority_score, reverse=True)
-        return VariantCollection(sorted_variants)
+        return VariantCollection(variants=sorted_variants)
 
     # ── Reporting ─────────────────────────────────────────────────────────────
 
