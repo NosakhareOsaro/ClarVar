@@ -330,7 +330,40 @@ def _post_vep_batch(
     list of dict
         Parsed JSON response, or [] on failure.
     """
-    raise NotImplementedError("TODO: implement _post_vep_batch")
+    payload = {
+        "variants": [_to_vep_region(v) for v in variants],
+        "CADD": 1,
+        "gnomAD": 1,
+        "ClinVar": 1,
+        "canonical": 1,
+        "pick": 1,
+    }
+    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = requests.post(
+                endpoint, json=payload, headers=headers, timeout=30
+            )
+
+            if response.status_code == 200:
+                return response.json()
+
+            if response.status_code == 429:
+                wait = int(response.headers.get("Retry-After", 1))
+                logger.warning("VEP rate-limited; waiting %ss before retry", wait)
+                time.sleep(wait)
+                continue
+
+            logger.warning("VEP returned HTTP %s", response.status_code)
+
+        except requests.RequestException as err:
+            logger.warning("VEP request failed: %s", err)
+
+        time.sleep(2 ** attempt)
+
+    logger.warning("VEP batch failed after %s attempts; returning []", MAX_RETRIES)
+    return []
 
 
 # ── Public classes ────────────────────────────────────────────────────────────
