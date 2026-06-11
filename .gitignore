@@ -1,0 +1,33 @@
+# Byte-compiled / optimized / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Packaging / build artifacts
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.cache/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# macOS
+.DS_Store
+
+# ClarVar pipeline outputs
+results/
