@@ -94,18 +94,31 @@ def cli():
               help="Genome assembly.")
 @click.option("-v", "--verbose",  is_flag=True,
               help="Enable debug logging.")
+
 def annotate(input, output, assembly, verbose):
     """Annotate variants with VEP consequences, gnomAD frequencies, and ClinVar."""
-    raise NotImplementedError(
-        "TODO: implement annotate command\n\n"
-        "Steps:\n"
-        "  1. Set logging level to DEBUG if verbose\n"
-        "  2. Create output directory\n"
-        "  3. Parse the input VCF with VCFParser\n"
-        "  4. Annotate with VariantAnnotator(assembly=assembly)\n"
-        "  5. Write annotated VCF to <output>/annotated.vcf\n"
-        "  6. Print a success message"
-    )
+    if verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    output_dir = Path(output)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    click.secho("Parsing VCF file...", fg="cyan")
+
+    parser = VCFParser()
+    collection = parser.parse_file(input)
+
+    click.secho(f"Annotating {len(collection)} variants using {assembly}...",fg="cyan",)
+
+    annotator = VariantAnnotator(assembly=assembly)
+
+    annotated = annotator.annotate_collection(collection,verbose=verbose,)
+
+    output_file = output_dir / "annotated.vcf"
+
+    parser.write_vcf(annotated,output_file,)
+
+    click.secho(f"Successfully wrote annotated variants to {output_file}",fg="green",)
 
 
 # ── prioritize ────────────────────────────────────────────────────────────────
