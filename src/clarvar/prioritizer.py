@@ -234,7 +234,12 @@ class VariantPrioritizer:
         Variant
             Same object with priority_score set.
         """
-        raise NotImplementedError("TODO: implement prioritize_variant")
+        score = ((self.consequence_weight * self._score_consequence(variant))
+                 + (self.clinvar_weight     * self._score_clinvar(variant))
+                 + (self.frequency_weight   * self._score_frequency(variant)))
+
+        variant.priority_score = score
+        return variant
 
     def prioritize_collection(
         self, collection: VariantCollection
@@ -252,7 +257,11 @@ class VariantPrioritizer:
             New collection with all variants scored and sorted descending
             by priority_score.
         """
-        raise NotImplementedError("TODO: implement prioritize_collection")
+        for variant in collection:
+            self.prioritize_variant(variant)  
+
+        sorted_variants = sorted(collection, key=lambda v: v.priority_score, reverse=True)
+        return VariantCollection(variants=sorted_variants)
 
     # ── Reporting ─────────────────────────────────────────────────────────────
 
