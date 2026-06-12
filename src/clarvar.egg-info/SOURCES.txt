@@ -4,6 +4,7 @@ pyproject.toml
 src/clarvar/__init__.py
 src/clarvar/annotator.py
 src/clarvar/cli.py
+src/clarvar/hpo_filter.py
 src/clarvar/prioritizer.py
 src/clarvar/reporter.py
 src/clarvar/variant.py
