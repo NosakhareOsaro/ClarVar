@@ -137,18 +137,20 @@ def annotate(input, output, assembly, verbose):
               help="Enable debug logging.")
 def prioritize(input, output, no_html, top_n, verbose):
     """Prioritize pre-annotated variants and write TSV, JSON, and HTML reports."""
-    raise NotImplementedError(
-        "TODO: implement prioritize command\n\n"
-        "Steps:\n"
-        "  1. Set logging level to DEBUG if verbose\n"
-        "  2. Create output directory\n"
-        "  3. Parse the input VCF with VCFParser\n"
-        "  4. Score and sort with VariantPrioritizer\n"
-        "  5. Write prioritised.vcf, prioritised_variants.tsv\n"
-        "  6. Write report.json via prioritizer.generate_report()\n"
-        "  7. Write report.html via write_html_report() (unless --no-html)\n"
-        "  8. Print success messages for each output"
-    )
+    if verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+    out_dir = Path(output)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    parser = VCFParser()
+    variants = parser.parse_file(Path(input))
+    prioritizer = VariantPrioritizer()
+    prioritized = prioritizer.prioritize_collection(variants)
+    parser.write_vcf(prioritized, out_dir / "prioritised.vcf")
+    write_tsv(prioritized, out_dir / "prioritised_variants.tsv")
+    (out_dir / "report.json").write_text(json.dumps(prioritizer.generate_report(prioritized), indent=2))
+    if not no_html:
+        write_html_report(list(prioritized.variants)[:top_n], out_dir / "report.html", input_path=Path(input))
+    click.secho("✓ Done.", fg="green")
 
 
 # ── pipeline ──────────────────────────────────────────────────────────────────
@@ -171,20 +173,34 @@ def prioritize(input, output, no_html, top_n, verbose):
               help="Enable debug logging.")
 def pipeline(input, output, assembly, no_html, top_n, hpo, verbose):
     """Run the full annotation + prioritisation pipeline (recommended)."""
-    raise NotImplementedError(
-        "TODO: implement pipeline command\n\n"
-        "Steps:\n"
-        "  1. Set logging level to DEBUG if verbose\n"
-        "  2. Create output directory\n"
-        "  3. Print a banner header\n"
-        "  4. [1/3] Parse VCF\n"
-        "  5. [2/3] Annotate with VariantAnnotator(assembly=assembly)\n"
-        "  6. [3/3] Score and sort with VariantPrioritizer\n"
-        "  7. Write all four output files\n"
-        "  8. Print a completion banner\n\n"
-        "Hint: you can call the annotate and prioritize logic directly\n"
-        "rather than invoking the CLI commands — they share the same steps."
-    )
+    if verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+    out_dir = Path(output)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    click.echo("=" * 55)
+    click.echo("  ClarVar: Variant Annotation & Prioritisation")
+    click.echo("=" * 55)
+    click.secho(f"\n[1/3] Parsing   {input}", fg="cyan")
+    parser = VCFParser()
+    variants = parser.parse_file(Path(input))
+    click.secho(f"      ✓ {len(variants)} variants parsed", fg="cyan")
+    click.secho("\n[2/3] Annotating ...", fg="cyan")
+    annotator = VariantAnnotator(assembly=assembly)
+    annotated = annotator.annotate_collection(variants, verbose=verbose)
+    click.secho(f"      ✓ {len(annotated)} variants annotated", fg="cyan")
+    click.secho("\n[3/3] Prioritising ...", fg="cyan")
+    prioritizer = VariantPrioritizer()
+    prioritized = prioritizer.prioritize_collection(annotated)
+    if hpo:
+        prioritized = filter_collection_by_hpo(prioritized, list(hpo))
+    click.secho(f"      ✓ {len(prioritized)} variants scored", fg="cyan")
+    parser.write_vcf(prioritized, out_dir / "prioritised.vcf")
+    write_tsv(prioritized, out_dir / "prioritised_variants.tsv")
+    (out_dir / "report.json").write_text(json.dumps(prioritizer.generate_report(prioritized), indent=2))
+    if not no_html:
+        write_html_report(list(prioritized.variants)[:top_n], out_dir / "report.html", input_path=Path(input))
+    click.secho("\n  Pipeline complete!", fg="green", bold=True)
+    click.echo("=" * 55)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
