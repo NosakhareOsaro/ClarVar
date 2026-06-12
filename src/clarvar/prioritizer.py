@@ -58,6 +58,7 @@ Three pre-built strategies alter the weights for different use cases:
 """
 
 import logging
+from math import dist
 from typing import Dict, List, Optional
 
 from clarvar.variant import Consequence, Variant, VariantCollection
@@ -292,19 +293,46 @@ class VariantPrioritizer:
         -------
         dict
         """
-        raise NotImplementedError("TODO: implement generate_report")
+        import statistics
+        variants = list(collection)
+        if not variants:
+            return {"total_variants": 0, "mean_priority": 0.0, "top_variants": []}
+        scores = [v.priority_score for v in variants]
+        top = sorted(variants, key=lambda v: v.priority_score, reverse=True)[:20]
+        return {
+            "total_variants": len(variants),
+            "mean_priority": round(statistics.mean(scores), 2),
+            "median_priority": round(statistics.median(scores), 2),
+            "max_priority": round(max(scores), 2),
+            "min_priority": round(min(scores), 2),
+            "top_variants": [{"variant": v.variant_id, "gene": v.gene, "consequence": v.consequence.value if v.consequence else None, "clinvar": v.clinvar_significance, "frequency": v.allele_frequency, "score": round(v.priority_score, 2)} for v in top],
+            "consequence_distribution": self._get_consequence_distribution(collection),
+            "clinvar_distribution": self._get_clinvar_distribution(collection),
+        }
+        
 
     def _get_consequence_distribution(
         self, collection: VariantCollection
     ) -> Dict[str, int]:
         """Return a count of variants by consequence term string."""
-        raise NotImplementedError("TODO: implement _get_consequence_distribution")
+        dist = {}
+        for v in collection:
+            key = v.consequence.value if v.consequence else "unknown"
+            dist[key] = dist.get(key, 0) + 1
+        return dist
+
 
     def _get_clinvar_distribution(
         self, collection: VariantCollection
     ) -> Dict[str, int]:
         """Return a count of variants by ClinVar significance string."""
-        raise NotImplementedError("TODO: implement _get_clinvar_distribution")
+
+        dist = {}
+        for v in collection:
+            key = v.clinvar_significance or "no_entry"
+            dist[key] = dist.get(key, 0) + 1
+        return dist
+
 
 
 # ── Ranking strategies ────────────────────────────────────────────────────────
@@ -337,7 +365,9 @@ class ConsequenceOnlyStrategy(RankingStrategy):
     """
 
     def rank(self, variants: List[Variant]) -> List[Variant]:
-        raise NotImplementedError("TODO: implement ConsequenceOnlyStrategy.rank")
+        p = VariantPrioritizer(consequence_weight=1.0, clinvar_weight=0.0, frequency_weight=0.0)
+        for v in variants: p.prioritize_variant(v)
+        return sorted(variants, key=lambda v: v.priority_score, reverse=True)
 
 
 class RarityFirstStrategy(RankingStrategy):
@@ -350,7 +380,9 @@ class RarityFirstStrategy(RankingStrategy):
     """
 
     def rank(self, variants: List[Variant]) -> List[Variant]:
-        raise NotImplementedError("TODO: implement RarityFirstStrategy.rank")
+        p = VariantPrioritizer(consequence_weight=0.2, clinvar_weight=0.2, frequency_weight=0.6)
+        for v in variants: p.prioritize_variant(v)
+        return sorted(variants, key=lambda v: v.priority_score, reverse=True)
 
 
 class ClinicalEvidenceFirstStrategy(RankingStrategy):
@@ -363,6 +395,6 @@ class ClinicalEvidenceFirstStrategy(RankingStrategy):
     """
 
     def rank(self, variants: List[Variant]) -> List[Variant]:
-        raise NotImplementedError(
-            "TODO: implement ClinicalEvidenceFirstStrategy.rank"
-        )
+        p = VariantPrioritizer(consequence_weight=0.2, clinvar_weight=0.6, frequency_weight=0.2)
+        for v in variants: p.prioritize_variant(v)
+        return sorted(variants, key=lambda v: v.priority_score, reverse=True)
