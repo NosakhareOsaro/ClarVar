@@ -411,7 +411,7 @@ class VariantAnnotator:
         ----------
         variant : Variant
 
-        Returns
+        Retur
         -------
         Variant
             The same object, with annotation fields populated in-place.
