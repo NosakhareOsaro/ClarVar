@@ -1,0 +1,6 @@
+input_dir: 'data/sample'
+output_dir: 'results'
+assembly: 'GRCh38'
+sample_sheet: ''
+
+

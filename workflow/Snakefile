@@ -1,0 +1,116 @@
+import csv
+
+configfile: 'workflow/config.yaml'
+
+INPUT_DIR = config["input_dir"]
+OUTPUT_DIR = config["output_dir"]
+SAMPLE_SHEET = config.get("sample_sheet",'')
+
+SAMPLES = glob_wildcards(
+    f"{INPUT_DIR}/{{sample}}.vcf"
+).sample
+
+# --------------------------------------------------
+# Sample discovery
+# --------------------------------------------------
+
+if SAMPLE_SHEET:
+    SAMPLE_TO_VCF = {}
+
+    with open(SAMPLE_SHEET) as fh:
+        reader = csv.DictReader(fh)
+
+        for row in reader:
+            SAMPLE_TO_VCF[row["sample"]] = row["vcf"]
+
+    SAMPLES = list(SAMPLE_TO_VCF.keys())
+
+else:
+    SAMPLES = glob_wildcards(
+        f"{INPUT_DIR}/{{sample}}.vcf"
+    ).sample
+    
+    #debug print
+    print("INPUT_DIR =", INPUT_DIR)
+    print("SAMPLES =", SAMPLES)
+    
+    SAMPLE_TO_VCF = {
+        sample: f"{INPUT_DIR}/{sample}.vcf"
+        for sample in SAMPLES
+    }
+
+
+rule all:
+    input:
+        expand(
+            f"{OUTPUT_DIR}/{{sample}}/report.json",
+            sample=SAMPLES,
+        ),
+        f"{OUTPUT_DIR}/cohort_summary.json"
+
+
+rule clarvar_pipeline:
+    input:
+        vcf=lambda wc: SAMPLE_TO_VCF[wc.sample]
+
+    output:
+        report=f"{OUTPUT_DIR}/{{sample}}/report.json"
+
+    params:
+        outdir=lambda wc: f"{OUTPUT_DIR}/{wc.sample}"
+
+    shell:
+        """
+        clarvar pipeline \
+            -i {input.vcf} \
+            -o {params.outdir}
+        """
+# --------------------------------------------------
+# Cohort summary
+# --------------------------------------------------
+
+rule cohort_summary:
+    input:
+        expand(
+            f"{OUTPUT_DIR}/{{sample}}/report.json",
+            sample=SAMPLES,
+        )
+
+    output:
+        f"{OUTPUT_DIR}/cohort_summary.json"
+
+    run:
+        import json
+
+        samples = []
+        total_variants = 0
+
+        for sample, report_file in zip(SAMPLES, input):
+            with open(report_file) as fh:
+                report = json.load(fh)
+
+            total_variants += report.get("total_variants", 0)
+
+            samples.append(
+                {
+                    "sample": sample,
+                    "total_variants": report.get("total_variants", 0),
+                    "top_variant": (
+                        report.get("top_variants", [{}])[0]
+                        if report.get("top_variants")
+                        else {}
+                    ),
+                    "report": str(report_file),
+                }
+            )
+
+        summary = {
+            "samples": samples,
+            "run_summary": {
+                "total_samples": len(samples),
+                "total_variants": total_variants,
+            },
+        }
+
+        with open(output[0], "w") as out:
+            json.dump(summary, out, indent=2)
