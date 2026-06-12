@@ -269,6 +269,9 @@ def _apply_vep_result(variant: Variant, vep_hit: Dict[str, Any]) -> None:
     transcripts = vep_hit.get("transcript_consequences", [])
     transcript = _pick_most_severe_transcript(transcripts)
     
+    if transcript is None:
+        return
+
     variant.gene=(transcript.get("gene_symbol") or transcript.get("gene_id"))
              
     variant.transcript=transcript.get("transcript_id")
