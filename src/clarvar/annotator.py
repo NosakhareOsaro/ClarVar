@@ -268,24 +268,25 @@ def _apply_vep_result(variant: Variant, vep_hit: Dict[str, Any]) -> None:
   
     transcripts = vep_hit.get("transcript_consequences", [])
     transcript = _pick_most_severe_transcript(transcripts)
+    if transcript is not None:
     
-    variant.gene=(transcript.get("gene_symbol") or transcript.get("gene_id"))
+        variant.gene=(transcript.get("gene_symbol") or transcript.get("gene_id"))
              
-    variant.transcript=transcript.get("transcript_id")
+        variant.transcript=transcript.get("transcript_id")
 
-    terms = transcript.get("consequence_terms", [])
-    if terms:
-        variant.consequence = Consequence.from_vep_string(terms[0])
+        terms = transcript.get("consequence_terms", [])
+        if terms:
+            variant.consequence = Consequence.from_vep_string(terms[0])
 
-    variant.hgvsc = transcript.get("hgvsc")
-    variant.hgvsp = transcript.get("hgvsp")
+        variant.hgvsc = transcript.get("hgvsc")
+        variant.hgvsp = transcript.get("hgvsp")
 
-    variant.sift = transcript.get("sift_prediction")
-    variant.polyphen = transcript.get("polyphen_prediction")
+        variant.sift = transcript.get("sift_prediction")
+        variant.polyphen = transcript.get("polyphen_prediction")
    
-    cadd= transcript.get("cadd_phred")
-    if cadd is not None:
-        variant.cadd_phred=float(cadd)
+        cadd= transcript.get("cadd_phred")
+        if cadd is not None:
+            variant.cadd_phred=float(cadd)
     
     variant.allele_frequency = _extract_gnomad_af(vep_hit)
 
