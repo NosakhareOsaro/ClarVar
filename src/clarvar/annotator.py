@@ -270,7 +270,10 @@ def _apply_vep_result(variant: Variant, vep_hit: Dict[str, Any]) -> None:
     transcript = _pick_most_severe_transcript(transcripts)
     if transcript is not None:
     
-        variant.gene=(transcript.get("gene_symbol") or transcript.get("gene_id"))
+    if transcript is None:
+        return
+
+    variant.gene=(transcript.get("gene_symbol") or transcript.get("gene_id"))
              
         variant.transcript=transcript.get("transcript_id")
 
@@ -412,7 +415,7 @@ class VariantAnnotator:
         ----------
         variant : Variant
 
-        Returns
+        Retur
         -------
         Variant
             The same object, with annotation fields populated in-place.
