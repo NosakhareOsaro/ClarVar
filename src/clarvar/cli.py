@@ -66,6 +66,7 @@ from .annotator import VariantAnnotator
 from .prioritizer import VariantPrioritizer
 from .reporter import write_tsv, write_html_report
 from .vcf_parser import VCFParser
+from .hpo_filter import filter_collection_by_hpo
 
 logging.basicConfig(
     level=logging.INFO,
@@ -164,9 +165,11 @@ def prioritize(input, output, no_html, top_n, verbose):
               help="Skip HTML report generation.")
 @click.option("--top-n",    default=50, show_default=True, metavar="N",
               help="Number of variants shown in the HTML report.")
+@click.option("--hpo", multiple=True,
+              help="Filter output to genes associated with one or more HPO terms.")
 @click.option("-v", "--verbose",  is_flag=True,
               help="Enable debug logging.")
-def pipeline(input, output, assembly, no_html, top_n, verbose):
+def pipeline(input, output, assembly, no_html, top_n, hpo, verbose):
     """Run the full annotation + prioritisation pipeline (recommended)."""
     raise NotImplementedError(
         "TODO: implement pipeline command\n\n"
